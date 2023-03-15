@@ -162,3 +162,130 @@ class PlexMediaServer(MediaServer):
                                        f'{response.status_code}. Check your media '
                                        f'server details.')
         return True
+
+
+
+class JellyfinMediaServer(MediaServer):
+
+    TIMEOUT = 5
+
+    HELP = _('<p>To connect your TubeSync sevrer to your Jellyfin Media Server you will '
+             'need to enter the details of your Jellyfin server below.</p>'
+             '<p>The <strong>host</strong> can be either an IP address or valid hostname.</p>'
+             '<p>The <strong>port</strong> number must be between 1 and 65536.</p>'
+             '<p>The <strong>api key</strong> is a Jellyfin api key to your Jellyfin server. You can find '
+             'out how to get a Jellyfin access token <a href="https://jellyfin.org/"'
+             'target="_blank">here</a>.</p>')
+
+    def make_request(self, uri='/', params={}):
+        
+        token = self.object.loaded_options['token']
+        headers = {'x-mediabrowser-token': token}
+
+        base_parts = urlsplit(self.object.url)
+        qs = urlencode(params)
+        url = urlunsplit((base_parts.scheme, base_parts.netloc, uri, qs, ''))
+
+        if self.object.verify_https:
+            log.debug(f'[jellyfin media server] Making HTTP GET request to: {url}')
+            res = requests.get(url, headers=headers, verify=True,
+                                timeout=self.TIMEOUT)
+            return res
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                return requests.get(url, headers=headers, verify=False,
+                                    timeout=self.TIMEOUT)
+
+    def refresh_library_request(self, uri='/', params={}):
+        token = self.object.loaded_options['token']
+        headers = {'x-mediabrowser-token': token}
+
+        base_parts = urlsplit(self.object.url)
+        qs = urlencode(params)
+        url = urlunsplit((base_parts.scheme, base_parts.netloc, uri, qs, ''))
+
+        if self.object.verify_https:
+            log.debug(f'[jellyfin media server] Making HTTP GET request to: {url}')
+            res = requests.post(url, headers=headers, verify=True, timeout=self.TIMEOUT)
+            return res
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                return requests.post(url, headers=headers, verify=False, timeout=self.TIMEOUT)
+
+    def validate(self):
+        '''
+            A Jellyfin server requires a host, port, access token and a comma-separated
+            list if library IDs.
+        '''
+        # Check all the required values are present
+        if not self.object.host:
+            raise ValidationError('Jellyfin Media Server requires a "host"')
+        if not self.object.port:
+            raise ValidationError('Jellyfin Media Server requires a "port"')
+        try:
+            port = int(self.object.port)
+        except (TypeError, ValueError):
+            raise ValidationError('Jellyfin Media Server "port" must be an integer')
+        if port < 1 or port > 65535:
+            raise ValidationError('Jellyfin Media Server "port" must be between 1 '
+                                  'and 65535')
+        options = self.object.loaded_options
+        if 'token' not in options:
+            raise ValidationError('Jellyfin Media Server requires a "token"')
+        token = options['token'].strip()
+        if 'token' not in options:
+            raise ValidationError('Jellyfin Media Server requires a "token"')
+        # Test the details work by requesting a summary page from the Plex server
+        try:
+            response = self.make_request('/Library/MediaFolders')
+        except Exception as e:
+            raise ValidationError(f'Failed to make a test connection to your Jellyfin '
+                                  f'Media Server at "{self.object.host}:'
+                                  f'{self.object.port}", the error was "{e}". Check '
+                                  'your host and port are correct.') from e
+        if response.status_code != 200:
+            check_token = ''
+            if 400 <= response.status_code < 500:
+                check_token = (' A 4XX error could mean your access token is being '
+                               'rejected. Check your token is correct.')
+            raise ValidationError(f'Your Jellyfin Media Server returned an invalid HTTP '
+                                  f'status code, expected 200 but received '
+                                  f'{response.status_code}.' + check_token)
+        try:
+            parsed_response = response.json()
+        except Exception as e:
+            raise ValidationError(f'Your Jellyfin Media Server returned unexpected data, '
+                                  f'expected valid json.'
+                                  f'the error "{e}"')
+        # Seems we have a valid library sections page, get the library IDs
+        remote_libraries = {}
+        try:
+            for item in parsed_response['Items']:
+                library_id = item['Id']
+                library_name = item['Name']
+                remote_libraries[library_id] = library_name
+        except Exception as e:
+            raise ValidationError(f'Your Jellyfin Media Server returned unexpected data, '
+                                  f'the Json it returned could not be parsed and the '
+                                  f'error was "{e}"')
+        # Validate the library IDs
+        remote_libraries_desc = []
+        for remote_library_id, remote_library_name in remote_libraries.items():
+            remote_libraries_desc.append(f'"{remote_library_name}" with ID '
+                                         f'"{remote_library_id}"')
+        remote_libraries_str = ', '.join(remote_libraries_desc)
+        return True
+
+    def update(self):
+        uri = f'/Library/Refresh'
+        print("Reloading media Server Jellyfin")
+        response = self.make_request(uri)
+        if response.status_code != 204:
+            raise MediaServerError(f'Failed to refresh library on '
+                                    f'Jellyfin server "{self.object.url}", expected a '
+                                    f'200 status code but got '
+                                    f'{response.status_code}. Check your media '
+                                    f'server details.')
+        return True

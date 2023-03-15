@@ -24,7 +24,7 @@ from background_task.models import Task, CompletedTask
 from .models import Source, Media, MediaServer
 from .forms import (ValidateSourceForm, ConfirmDeleteSourceForm, RedownloadMediaForm,
                     SkipMediaForm, EnableMediaForm, ResetTasksForm, PlexMediaServerForm,
-                    ConfirmDeleteMediaServerForm)
+                    JellyfinMediaServerForm, ConfirmDeleteMediaServerForm)
 from .utils import validate_url, delete_file
 from .tasks import (map_task_to_instance, get_error_message,
                     get_source_completed_tasks, get_media_download_task,
@@ -925,12 +925,15 @@ class AddMediaServerView(FormView):
     template_name = 'sync/mediaserver-add.html'
     server_types = {
         'plex': MediaServer.SERVER_TYPE_PLEX,
+        'jellyfin': MediaServer.SERVER_TYPE_JELLYFIN,
     }
     server_type_names = {
         MediaServer.SERVER_TYPE_PLEX: _('Plex'),
+        MediaServer.SERVER_TYPE_JELLYFIN: _('Jellyfin'),
     }
     forms = {
         MediaServer.SERVER_TYPE_PLEX: PlexMediaServerForm,
+        MediaServer.SERVER_TYPE_JELLYFIN: JellyfinMediaServerForm,
     }
 
     def __init__(self, *args, **kwargs):
@@ -942,6 +945,9 @@ class AddMediaServerView(FormView):
     def dispatch(self, request, *args, **kwargs):
         server_type_str = kwargs.get('server_type', '')
         self.server_type = self.server_types.get(server_type_str)
+
+        print(self.server_type)
+
         if not self.server_type:
             raise Http404
         self.form_class = self.forms.get(self.server_type)
@@ -1048,6 +1054,7 @@ class UpdateMediaServerView(FormView, SingleObjectMixin):
     model = MediaServer
     forms = {
         MediaServer.SERVER_TYPE_PLEX: PlexMediaServerForm,
+        MediaServer.SERVER_TYPE_JELLYFIN: JellyfinMediaServerForm,
     }
 
     def __init__(self, *args, **kwargs):

@@ -76,3 +76,29 @@ class PlexMediaServerForm(forms.Form):
     libraries = forms.CharField(
         label=_('Comma-separated list of Plex library IDs to update, such as "9" or "4,6"')
     )
+
+
+class JellyfinMediaServerForm(forms.Form):
+
+    host = forms.CharField(
+        label=_('Host name or IP address of the Jellyfin server'),
+        required=True
+    )
+    port = forms.IntegerField(
+        label=_('Port number of the Jellyfin server'),
+        required=True,
+        initial=8096
+    )
+    use_https = forms.BooleanField(
+        label=_('Connect over HTTPS'),
+        required=False,
+        initial=False,
+    )
+    verify_https = forms.BooleanField(
+        label=_('Verify the HTTPS certificate is valid if connecting over HTTPS'),
+        required=False
+    )
+    token = forms.CharField(
+        label=_('API Key'),
+        required=True
+    )

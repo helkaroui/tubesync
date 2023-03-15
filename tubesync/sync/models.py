@@ -18,7 +18,7 @@ from .youtube import (get_media_info as get_youtube_media_info,
 from .utils import seconds_to_timestr, parse_media_format
 from .matching import (get_best_combined_format, get_best_audio_format, 
                        get_best_video_format)
-from .mediaservers import PlexMediaServer
+from .mediaservers import PlexMediaServer, JellyfinMediaServer
 from .fields import CommaSepChoiceField
 
 media_file_storage = FileSystemStorage(location=str(settings.DOWNLOAD_ROOT), base_url='/media-data/')
@@ -1354,15 +1354,19 @@ class MediaServer(models.Model):
     '''
 
     SERVER_TYPE_PLEX = 'p'
-    SERVER_TYPES = (SERVER_TYPE_PLEX,)
+    SERVER_TYPE_JELLYFIN = 'j'
+    SERVER_TYPES = (SERVER_TYPE_PLEX, SERVER_TYPE_JELLYFIN, )
     SERVER_TYPE_CHOICES = (
         (SERVER_TYPE_PLEX, _('Plex')),
+        (SERVER_TYPE_JELLYFIN, _('Jellyfin')),
     )
     ICONS = {
         SERVER_TYPE_PLEX: '<i class="fas fa-server"></i>',
+        SERVER_TYPE_JELLYFIN: '<i class="fas fa-server"></i>',
     }
     HANDLERS = {
         SERVER_TYPE_PLEX: PlexMediaServer,
+        SERVER_TYPE_JELLYFIN: JellyfinMediaServer,
     }
 
     server_type = models.CharField(
